@@ -1,45 +1,37 @@
-# Install required packages (run once)
-!pip install streamlit gspread google-auth
-
 import streamlit as st
 import gspread
-from google.auth import default
+from google.oauth2.service_account import Credentials
 
-# Authenticate to Google Sheets (works best locally with service account JSON)
-creds, _ = default()
-gc = gspread.authorize(creds)
+# --- App title ---
+st.title("📊 CRSA Dashboard")
 
-spreadsheet_name = "Study_Master"  # Your Google Sheet name
-spreadsheet = gc.open(spreadsheet_name)
-sheet = spreadsheet.sheet1
+# --- Define Google API scope ---
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets", 
+          "https://www.googleapis.com/auth/drive"]
 
-# Streamlit form
-st.title("Study Master Data Entry Form")
+# --- Authenticate with service account ---
+try:
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"], scopes=SCOPES
+    )
+    client = gspread.authorize(creds)
+    st.success("✅ Connected to Google Sheets successfully!")
+except Exception as e:
+    st.error("❌ Failed to connect to Google Sheets")
+    st.exception(e)
 
-with st.form("study_form"):
-    StudyID = st.text_input("StudyID")
-    StudyName = st.text_input("StudyName")
-    Indication = st.text_input("Indication")
-    LineOfTherapy = st.text_input("LineOfTherapy")
-    Mutation = st.text_input("Mutation")
-    TotalSlots = st.number_input("TotalSlots", min_value=0)
-    Status = st.text_input("Status")
-    StartDate = st.date_input("StartDate")
-    EndDate = st.date_input("EndDate")
+# --- Example: Read a Google Sheet ---
+try:
+    # Replace with your Google Sheet ID
+    SHEET_ID = "YOUR_GOOGLE_SHEET_ID"
+    sheet = client.open_by_key(SHEET_ID).sheet1
+    data = sheet.get_all_records()
 
-    submitted = st.form_submit_button("Submit")
-
-    if submitted:
-        new_row = [
-            StudyID,
-            StudyName,
-            Indication,
-            LineOfTherapy,
-            Mutation,
-            str(TotalSlots),
-            Status,
-            StartDate.strftime("%Y-%m-%d"),
-            EndDate.strftime("%Y-%m-%d"),
-        ]
-        sheet.append_row(new_row)
-        st.success("New study data added successfully!")
+    if data:
+        st.subheader("📑 Data from Google Sheet")
+        st.dataframe(data)
+    else:
+        st.warning("Sheet is empty!")
+except Exception as e:
+    st.warning("⚠️ Could not fetch sheet data (check your SHEET_ID and permissions)")
+    st.exception(e)
