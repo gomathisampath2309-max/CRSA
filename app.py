@@ -1,65 +1,73 @@
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
-from datetime import datetime
+import pandas as pd
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets",
-          "https://www.googleapis.com/auth/drive"]
+# -------------------------
+# Google Sheets Setup
+# -------------------------
+SHEET_NAME = "Study_Master"   # 👈 Change this to your sheet name
 
-# Authenticate using Streamlit secrets
-try:
-    creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"],
-        scopes=SCOPES
-    )
-    client = gspread.authorize(creds)
-    st.success("✅ Connected to Google Sheets successfully!")
-except Exception as e:
-    st.error("❌ Failed to connect to Google Sheets")
-    st.exception(e)
+# Load service account credentials from Streamlit secrets
+creds_dict = st.secrets["gcp_service_account"]
+creds = Credentials.from_service_account_info(
+    creds_dict, scopes=["https://www.googleapis.com/auth/spreadsheets"]
+)
+client = gspread.authorize(creds)
 
-# Google Sheet ID
-SHEET_ID = "YOUR_GOOGLE_SHEET_ID"  # Replace with your Sheet ID
+# Open the sheet
+sheet = client.open(SHEET_NAME).sheet1
 
-try:
-    sheet = client.open_by_key(SHEET_ID).sheet1
-    data = sheet.get_all_records()
-    st.subheader("Existing Study_Master Data")
-    st.dataframe(data)
-except Exception as e:
-    st.warning("⚠️ Could not fetch sheet data (check your SHEET_ID and permissions)")
-    st.exception(e)
+# -------------------------
+# Streamlit UI
+# -------------------------
+st.set_page_config(page_title="Study Master App", page_icon="📊", layout="centered")
+st.title("📊 Study Master Management")
 
-# Streamlit Form to Add New Study
-st.subheader("➕ Add New Study")
-with st.form("study_form"):
-    StudyID = st.text_input("Study ID")
-    StudyName = st.text_input("Study Name")
-    Indication = st.text_input("Indication")
-    LineOfTherapy = st.text_input("Line of Therapy")
-    Mutation = st.text_input("Mutation")
-    TotalSlots = st.number_input("Total Slots", min_value=0)
-    Status = st.selectbox("Status", ["Active", "Closed", "Planned"])
-    StartDate = st.date_input("Start Date")
-    EndDate = st.date_input("End Date")
+# Input fields
+with st.form("add_study_form"):
+    study_id = st.text_input("Study ID (e.g., S001)")
+    study_name = st.text_input("Study Name (e.g., Lung Trial A)")
+    indication = st.text_input("Indication (e.g., Lung, Breast, Colon)")
+    line_of_therapy = st.text_input("Line of Therapy (e.g., 1st Line, 2nd Line)")
+    mutation = st.text_input("Mutation (e.g., EGFR, HER2, KRAS)")
+    total_slots = st.number_input("Total Slots", min_value=1, step=1)
+    status = st.selectbox("Status", ["Active", "Closed"])
+    start_date = st.date_input("Start Date")
+    end_date = st.date_input("End Date")
 
-    submitted = st.form_submit_button("Submit")
+    submitted = st.form_submit_button("➕ Add Study")
 
-    if submitted:
-        try:
-            new_row = [
-                StudyID,
-                StudyName,
-                Indication,
-                LineOfTherapy,
-                Mutation,
-                str(TotalSlots),
-                Status,
-                StartDate.strftime("%d-%m-%Y"),
-                EndDate.strftime("%d-%m-%Y"),
-            ]
-            sheet.append_row(new_row)
-            st.success(f"✅ Study {StudyID} added successfully!")
-        except Exception as e:
-            st.error("❌ Failed to add study")
-            st.exception(e)
+# -------------------------
+# Add Study Logic
+# -------------------------
+if submitted:
+    if study_id and study_name:
+        # Prepare row
+        new_row = [
+            study_id,
+            study_name,
+            indication,
+            line_of_therapy,
+            mutation,
+            total_slots,
+            status,
+            str(start_date),
+            str(end_date),
+        ]
+        # Append to Google Sheet
+        sheet.append_row(new_row)
+        st.success(f"✅ Study {study_id} - {study_name} added successfully!")
+    else:
+        st.error("⚠️ Please fill Study ID and Study Name")
+
+# -------------------------
+# Display Existing Data
+# -------------------------
+st.subheader("📋 Existing Studies")
+data = sheet.get_all_records()
+if data:
+    df = pd.DataFrame(data)
+    st.dataframe(df, use_container_width=True)
+else:
+    st.info("No studies found yet.")
