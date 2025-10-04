@@ -1,73 +1,53 @@
-import streamlit as st
 import gspread
-from google.oauth2.service_account import Credentials
-import pandas as pd
+from google.colab import auth
+from google.auth import default
+import ipywidgets as widgets
+from IPython.display import display, clear_output
 
-# -------------------------
-# Google Sheets Setup
-# -------------------------
-SHEET_NAME = "Study_Master"   # 👈 Change this to your sheet name
+# 🔹 Authenticate with Google
+auth.authenticate_user()
+creds, _ = default()
+gc = gspread.authorize(creds)
 
-# Load service account credentials from Streamlit secrets
-creds_dict = st.secrets["gcp_service_account"]
-creds = Credentials.from_service_account_info(
-    creds_dict, scopes=["https://www.googleapis.com/auth/spreadsheets"]
-)
-client = gspread.authorize(creds)
+# 🔹 Open Google Sheet (must already exist in your Drive)
+SPREADSHEET_NAME = "Study_Master"   # Change if your sheet has a different name
+spreadsheet = gc.open(SPREADSHEET_NAME)
+sheet = spreadsheet.sheet1
 
-# Open the sheet
-sheet = client.open(SHEET_NAME).sheet1
+# 🔹 Create form widgets
+StudyID = widgets.Text(description="StudyID")
+StudyName = widgets.Text(description="StudyName")
+Indication = widgets.Text(description="Indication")
+LineOfTherapy = widgets.Text(description="Therapy")
+Mutation = widgets.Text(description="Mutation")
+TotalSlots = widgets.IntText(description="Slots")
+Status = widgets.Dropdown(description="Status", options=["Active", "Closed", "Planned"])
+StartDate = widgets.Text(description="StartDate", placeholder="dd-mm-yyyy")
+EndDate = widgets.Text(description="EndDate", placeholder="dd-mm-yyyy")
 
-# -------------------------
-# Streamlit UI
-# -------------------------
-st.set_page_config(page_title="Study Master App", page_icon="📊", layout="centered")
-st.title("📊 Study Master Management")
+submit_btn = widgets.Button(description="Submit ✅", button_style='success')
+output = widgets.Output()
 
-# Input fields
-with st.form("add_study_form"):
-    study_id = st.text_input("Study ID (e.g., S001)")
-    study_name = st.text_input("Study Name (e.g., Lung Trial A)")
-    indication = st.text_input("Indication (e.g., Lung, Breast, Colon)")
-    line_of_therapy = st.text_input("Line of Therapy (e.g., 1st Line, 2nd Line)")
-    mutation = st.text_input("Mutation (e.g., EGFR, HER2, KRAS)")
-    total_slots = st.number_input("Total Slots", min_value=1, step=1)
-    status = st.selectbox("Status", ["Active", "Closed"])
-    start_date = st.date_input("Start Date")
-    end_date = st.date_input("End Date")
-
-    submitted = st.form_submit_button("➕ Add Study")
-
-# -------------------------
-# Add Study Logic
-# -------------------------
-if submitted:
-    if study_id and study_name:
-        # Prepare row
+# 🔹 Submit function
+def on_submit(b):
+    with output:
+        clear_output()
         new_row = [
-            study_id,
-            study_name,
-            indication,
-            line_of_therapy,
-            mutation,
-            total_slots,
-            status,
-            str(start_date),
-            str(end_date),
+            StudyID.value,
+            StudyName.value,
+            Indication.value,
+            LineOfTherapy.value,
+            Mutation.value,
+            str(TotalSlots.value),
+            Status.value,
+            StartDate.value,
+            EndDate.value,
         ]
-        # Append to Google Sheet
         sheet.append_row(new_row)
-        st.success(f"✅ Study {study_id} - {study_name} added successfully!")
-    else:
-        st.error("⚠️ Please fill Study ID and Study Name")
+        print(f"✅ Study {StudyID.value} added successfully to Google Sheets!")
 
-# -------------------------
-# Display Existing Data
-# -------------------------
-st.subheader("📋 Existing Studies")
-data = sheet.get_all_records()
-if data:
-    df = pd.DataFrame(data)
-    st.dataframe(df, use_container_width=True)
-else:
-    st.info("No studies found yet.")
+submit_btn.on_click(on_submit)
+
+# 🔹 Display form
+display(StudyID, StudyName, Indication, LineOfTherapy, Mutation, 
+        TotalSlots, Status, StartDate, EndDate, submit_btn, output)
